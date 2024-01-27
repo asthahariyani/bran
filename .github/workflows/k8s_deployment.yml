@@ -1,0 +1,56 @@
+name: EKS Bran Deployment
+run-name: ${{ github.actor }} has triggered a build! 🚀
+on:
+  workflow_dispatch:
+    inputs:
+      parameter_name:
+        description: 'Branch name'
+        required: true
+        default: 'main'
+        
+jobs:
+  Deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      
+      - name: Creating a Docker image...
+        run: echo "Docker Image Build Begins"
+
+      - name: Configuring AWS credentials...
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Logging into AWS ECR...
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Building, tagging, and pushing Docker image to AWS ECR...
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: bran
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $REGISTRY/$REPOSITORY:bran-$IMAGE_TAG .
+          docker push $REGISTRY/$REPOSITORY:bran-$IMAGE_TAG
+
+      - name: Deploying new image to EKS Cluster...
+        uses: kodermax/kubectl-aws-eks@master
+        env:
+          KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: bran
+          IMAGE_TAG: ${{ github.sha }}
+        with:
+          args: set image deployments/bran-deployment bran=$REGISTRY/$REPOSITORY:bran-$IMAGE_TAG
+
+      - name: verify deployment
+        uses: kodermax/kubectl-aws-eks@main
+        env:
+          KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
+        with:
+          args: rollout status deployment/bran-deployment
