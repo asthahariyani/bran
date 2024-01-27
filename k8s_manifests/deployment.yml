@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bran-deployment
+  labels:
+    app: bran
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bran
+  template:
+    metadata:
+      labels:
+        app: bran
+    spec:
+      containers:
+      - name: bran
+        image: $IMAGE
+        imagePullPolicy: Always
+        envFrom:
+        - configMapRef:
+            name: env-bran
+        ports:
+        - containerPort: 8000
